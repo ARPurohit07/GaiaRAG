@@ -444,7 +444,7 @@ embeddings, CPU only (run `eval-20261006-123347`):
 |---|---|
 | cases | 50 (39 served, 11 abstained) |
 | pass rate | **92%** |
-| answered-wrong rate | **0%** (see note) |
+| answered-wrong rate | **0%** |
 | abstention correctness | 94% |
 | faithfulness, claims (served) | 0.996 |
 | numeric exactness (served) | 1.000 |
@@ -452,8 +452,8 @@ embeddings, CPU only (run `eval-20261006-123347`):
 | context recall | 0.900 |
 | context utilisation | 0.194 -> **0.225** after the row cap below |
 
-The run reports a 2% answered-wrong rate; the true figure is **0%**. The
-one case counted wrong was correct: the answer said "3.29 x 10^4 times
+The run's own summary prints 2%. The true figure is 0%, because the
+one case it counted wrong was in fact correct: the answer said "3.29 x 10^4 times
 solar", which is the required 32,910, and the numeric extractor could not
 read that notation. The scorer was at fault, not the pipeline. Both the
 evidence rendering and the extractor have since been fixed, which is
@@ -561,37 +561,34 @@ already handles.
 `.venv-ragas/Scripts/python.exe -m gaia_rag.eval.ragas_eval --fast --limit 24`
 
 RAGAS scores the *stored* answers from a completed run, so it judges the
-exact text this project's own metrics judged.
+exact text this project's own metrics judged -- the comparison is on
+identical output, not a fresh generation.
 
-| metric | score | usable samples |
-|---|---|---|
-| faithfulness | 1.000 | **14 of 24** |
-| context_recall | 0.720 | 22 of 24 |
+**Result: `context_recall` 0.720**, over 22 of 24 samples with a
+well-spread distribution.
 
-**Read the faithfulness figure with suspicion.** It rests on 14 of 24
-samples -- 10 jobs timed out -- and every surviving value is exactly 1.0,
-a perfectly degenerate distribution. That is more consistent with "the
-judge returned a trivially parseable verdict when it completed" than with
-measurement. Report it as "no unfaithful statements found in 14 samples",
-not as a score.
+That is independent corroboration which **disagrees**, and the
+disagreement is the point: this project's own harness scored 0.900 on the
+same answers. Two implementations differing by 0.18 on identical text is
+a real finding, and the gap is explainable -- this harness credits a
+retrieved document by id-pattern match, while RAGAS asks a judge whether
+each reference claim is attributable to the context. RAGAS is the
+stricter definition and probably the better one, so **this project's
+context recall should be read as optimistic.**
 
-**`context_recall` 0.720 is the useful result**, over 22 samples with a
-genuinely spread distribution. It is also independent corroboration that
-disagrees: this project's own harness measured 0.900 context recall on
-the same answers. Two implementations differing by 0.18 on identical text
-is a real finding, and the gap is explainable -- this harness credits a
-retrieved document by id-pattern match, RAGAS asks a judge whether each
-reference claim is attributable to the context. RAGAS is stricter and
-probably closer to right, which means **this project's context recall is
-likely optimistic.**
+RAGAS's faithfulness metric is **not reported here.** On this hardware 10
+of 24 of its jobs timed out and every surviving value was exactly 1.0 --
+a degenerate distribution over a minority of the sample, which is not a
+measurement. Quoting a 1.000 from it would be worse than quoting nothing.
 
-Two caveats on RAGAS generally. It is not an independent *method*: its
-faithfulness decomposes an answer into statements and LLM-judges
-entailment, structurally the same approach as this project's claim judge.
-What it adds is an independent implementation and prompt set. And it
-cannot see this system's main property at all -- it has no notion of a
-correct refusal, so the abstention cases are excluded, and those are
-where most of the behaviour under test lives.
+Two limits on what an external check buys. RAGAS is not an independent
+*method*: its faithfulness decomposes an answer into statements and
+LLM-judges entailment, structurally the same approach as this project's
+claim judge, so what it adds is an independent implementation and prompt
+set rather than a different kind of evidence. And it cannot see this
+system's defining behaviour at all -- it has no notion of a correct
+refusal, so every abstention case is excluded, and those are a third of
+the gold set.
 
 Each run writes full JSON to `data/processed/eval/` — evidence sets,
 claim verdicts, numeric checks, the generated SQL and the spec — so two
@@ -625,8 +622,10 @@ metrics code is unchanged by it.
   deterministic checks precisely so it is only asked to do what it is
   reasonably good at, but an 8B local judge is still the least reliable
   gate. Nothing numeric depends on it.
-- **Latency.** ~50–130s per question on CPU, dominated by generation and
-  one judge call per claim. Fine for evaluation, not for interactive use.
+- **Latency.** 50–310s per question on CPU, depending on how many
+  claims an answer makes: cost is dominated by one judge call per
+  claim, not by context length. Fine for evaluation, far too slow for
+  interactive use.
 - **Derived fields only.** Galaxy's CSV has already collapsed parallax,
   apparent magnitude and period into distance and luminosity, so the
   system cannot answer questions about raw Gaia measurements. The TAP
@@ -670,7 +669,6 @@ gaia_rag/
     guard.py             the abstain policy
   eval/
     ablate.py            per-component ablations
-    baseline.py          naive dense-only RAG, for comparison
     ragas_eval.py        external scoring via RAGAS
     ragas_llm.py         RAGAS judge backed directly by Ollama
     goldset/             50 cases (38 curated, 12 SQL-generated)
