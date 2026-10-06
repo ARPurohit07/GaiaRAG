@@ -1,0 +1,8 @@
+# Pure-stdlib pipeline except for these.
+duckdb>=1.0
+numpy>=1.24
+
+# Everything else (embeddings, generation, judging) runs through the
+# Ollama HTTP API, so there is no SDK dependency. Pull the models with:
+#   ollama pull nomic-embed-text
+#   ollama pull qwen3:8b

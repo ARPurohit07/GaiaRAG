@@ -1,0 +1,14 @@
+# Generated corpora and run outputs (rebuild with scripts/build_all.py)
+data/processed/
+data/docs/
+data/raw/
+
+# Virtualenvs
+.venv/
+.venv-ragas/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
