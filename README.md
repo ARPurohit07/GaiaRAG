@@ -450,7 +450,7 @@ embeddings, CPU only (run `eval-20261006-123347`):
 | numeric exactness (served) | 1.000 |
 | subject consistency (served) | 1.000 |
 | context recall | 0.900 |
-| context precision | 0.194 |
+| context utilisation | 0.194 -> **0.225** after the row cap below |
 
 The run reports a 2% answered-wrong rate; the true figure is **0%**. The
 one case counted wrong was correct: the answer said "3.29 x 10^4 times
@@ -469,11 +469,58 @@ Of the four failures, only one was a system defect:
 | `empty_cepheids_near` | zero-row fact lived in a retrieval note, so it was not citable and the claim was judged unsupported |
 | `empty_gcns_within_10pc` | same, plus a knife-edge threshold (2 of 3 claims = 0.667 against a 0.67 gate) |
 
-Context precision is low by construction (~0.19): both retrievers run
-for every question, so a numeric lookup is handed document chunks it does
-not cite. That is a deliberate trade -- the alternative is answering "how
-far is this Cepheid?" without the document saying the distance is a
-period-luminosity estimate with a 10% uncertainty.
+All three defects were fixed and each was **re-measured against the gold
+set** afterwards: the luminosity rendering (`gen_gaia_cepheid_most_luminous`
+passes), degenerate-field detection (2/2 `degenerate_field`), and citable
+zero-result evidence (4/4 `empty_result`). Across the 17 cases re-run
+since, the system scores 17/17 with 0% answered-wrong.
+
+The headline 92% above is nonetheless left as measured, because it is the
+last **complete** run. Quoting a higher number would mean inferring it
+from partial re-runs rather than measuring it, and the whole point of
+this project is not doing that.
+
+### Context utilisation, and why it is not "precision"
+
+This metric counts how much of the retrieved context the answer actually
+**cited** (`cited / retrieved`). It is deliberately *not* called context
+precision: precision in the IR sense asks what fraction of retrieved
+context is **relevant**, and an item can be perfectly relevant and simply
+uncited. The old name invited the reading that a low score meant most
+retrieved context was junk -- it does not -- and it also led to this
+figure being described as comparable to RAGAS's `context_precision`,
+which judges relevance and ranking. They measure different things.
+
+Measuring it properly split the low score into three parts, only one of
+which was deliberate:
+
+1. **The name** (above): the largest share of the confusion.
+2. **By design:** six provenance chunks ride along on every question, so
+   a numeric lookup can say a Cepheid distance is a period-luminosity
+   estimate with 10% uncertainty rather than quoting a bare number. Doc
+   utilisation is ~0.14 and that is a trade worth making.
+3. **A real inefficiency:** `extreme` queries kept up to 10 rows when
+   only the extreme one is ever cited. The top row already carries its
+   own ranking statement, so rows 2-10 contributed nothing -- and those
+   kinds were both the least utilised and the slowest. Capped at 3 (not
+   1, so a tie at the top stays visible).
+
+Row evidence across the run dropped **122 -> 54 items (-56%)**, and the
+affected kinds improved, with identical numbers across two independent
+runs:
+
+| kind | before | after |
+|---|---|---|
+| `numeric` | 0.09 | **0.164** |
+| `unit_conversion` | 0.11 | **0.184** |
+| `degenerate_field` | 0.12 | **0.222** |
+
+All three scored 100% pass and 0% answered-wrong after the change. The
+residual ~0.22 is structural arithmetic: with 1-3 row items, six
+provenance chunks and one or two citations, utilisation cannot go much
+higher without dropping the provenance -- which would mean answering
+"how far is this Cepheid?" without the caveat that makes the number
+honest.
 
 ### Ablations: what each component is actually worth
 
