@@ -40,7 +40,7 @@ class CaseResult:
     faithfulness: float = 0.0
     numeric_exactness: float = 1.0
     subject_consistency: float = 1.0
-    context_precision: float = 0.0
+    context_utilisation: float = 0.0
     context_recall: float = 0.0
     answer_relevancy: float = 0.0
 
@@ -101,10 +101,18 @@ def score_case(case: dict, answer: RAGAnswer, relevancy: float) -> CaseResult:
     if answer.subject_report:
         result.subject_consistency = 1.0 if answer.subject_report.passed else 0.0
 
-    # Context precision: of what we put in the prompt, how much was used.
+    # Of what we put in the prompt, how much did the answer cite.
+    #
+    # Named utilisation, not precision. It measures citation coverage,
+    # whereas context precision in the IR sense asks what fraction of
+    # retrieved context is RELEVANT -- and an item can be relevant and
+    # simply uncited. The old name invited the reading that a low score
+    # meant most retrieved context was junk, and led to it being
+    # described as comparable to RAGAS's context precision, which judges
+    # relevance and ranking instead. Different quantity, different name.
     retrieved = {e.evidence_id for e in answer.evidence}
     cited = set(answer.citations) & retrieved
-    result.context_precision = len(cited) / len(retrieved) if retrieved else 0.0
+    result.context_utilisation = len(cited) / len(retrieved) if retrieved else 0.0
 
     # Context recall: did retrieval surface the evidence the case needs?
     expected = case.get("expected_evidence") or []
@@ -208,7 +216,7 @@ class Summary:
             "subject_consistency_served": self._mean(
                 "subject_consistency", only_served=True
             ),
-            "context_precision": self._mean("context_precision"),
+            "context_utilisation": self._mean("context_utilisation"),
             "context_recall": self._mean("context_recall"),
             "answer_relevancy": self._mean("answer_relevancy"),
         }
@@ -241,7 +249,7 @@ class Summary:
             f"  subject consistency     : {d['subject_consistency_served']:.3f}",
             "",
             "retrieval",
-            f"  context precision       : {d['context_precision']:.3f}",
+            f"  context utilisation     : {d['context_utilisation']:.3f}",
             f"  context recall          : {d['context_recall']:.3f}",
             "",
             f"answer relevancy          : {d['answer_relevancy']:.3f}",

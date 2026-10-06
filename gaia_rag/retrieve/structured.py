@@ -63,6 +63,10 @@ FILTERABLE = {
 
 OPERATORS = {"<", "<=", ">", ">=", "=", "!=", "between"}
 
+#: Rows kept for an `extreme` query. The extreme row is the answer;
+#: two spares make a tie visible without padding the prompt.
+EXTREME_ROW_CAP = 3
+
 AGGREGATES = {"count", "avg", "min", "max", "sum", "median", "stddev"}
 
 VALID_SUBSETS = (
@@ -170,6 +174,20 @@ class QuerySpec:
         # A hard cap: an answer cannot faithfully summarise 10,000 rows,
         # and a huge result set just dilutes the prompt.
         self.limit = max(1, min(int(self.limit), CONFIG.retrieval.max_rows))
+
+        # A superlative needs the extreme row, not ten of them. Planners
+        # routinely emit `limit: 10` for "the most distant X", and since
+        # the top row already carries a ranking statement ("the highest
+        # dist_pc of the 2,187 matching rows"), rows 2-10 are never cited
+        # and contribute nothing. Measured over a 50-case run, the
+        # superlative kinds retrieved 13-16 items and cited 1.2 -- the
+        # worst citation coverage of any kind, and they were also the
+        # slowest cases, because every extra row lengthens the prompt.
+        #
+        # Three rather than one, so a tie or near-tie at the top is
+        # visible to the answer rather than hidden behind a LIMIT.
+        if self.intent == "extreme":
+            self.limit = min(self.limit, EXTREME_ROW_CAP)
 
 
 # --- compilation ------------------------------------------------------
