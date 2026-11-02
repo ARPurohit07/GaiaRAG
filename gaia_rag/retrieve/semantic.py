@@ -61,9 +61,9 @@ class SemanticRetriever:
         )
 
     def _ensure_subset_coverage(
-        self, question: str, kept_ids: list[int], dense, k: int
+        self, question: str, kept_ids: list[int], dense, lexical, k: int
     ) -> list[int]:
-        """Guarantee a document for every subset the question names.
+        """Place the documents for named subsets and requested fields first.
 
         Ranking alone does not do this, and the gap produces the worst
         class of error. Asked to compare GCNS parallax distances with RR
@@ -83,36 +83,56 @@ class SemanticRetriever:
         from ..verify.subject import detect_subsets
 
         wanted = detect_subsets(question)
-        if len(wanted) < 2:
-            # With one subject there is nothing to confuse it with, and
-            # ranking already favours the right document.
+        if not wanted:
             return kept_ids
 
-        chunks = self.index.chunks
-        covered = {
-            subset
-            for subset in wanted
-            for i in kept_ids
-            if subset in chunks[i].doc_id
+        q = question.lower()
+        selection = any(
+            term in q
+            for term in (
+                "select", "classification", "archive table", "cut",
+                "restricted", "criteria", "sample",
+            )
+        )
+        selection_docs = {
+            "gaia_gcns": "selection_gcns",
+            "gaia_cepheid": "selection_gaia_variables",
+            "gaia_rrlyrae": "selection_gaia_variables",
+            "gaia_dr3_luminous": "selection_gaia_far",
+            "apogee": "selection_apogee",
+            "hyg": "selection_hyg",
         }
-        for subset in sorted(wanted - covered):
-            candidates = [
-                i
-                for i in range(len(chunks))
-                if subset in chunks[i].doc_id and i not in kept_ids
-            ]
-            if not candidates:
-                continue
-            best = max(candidates, key=lambda i: float(dense[i]))
-            if len(kept_ids) < k:
-                kept_ids.append(best)
-            else:
-                # Replace the weakest slot rather than growing the prompt.
-                kept_ids[-1] = best
-        return kept_ids
+        preferred: list[str] = []
+        if "gaia_rrlyrae" in wanted:
+            if "lumin" in q and "distance" not in q:
+                preferred.append("caveats_field_lum_lsun_gaia_rrlyrae")
+            if "color" in q or "colour" in q or "reddest" in q:
+                preferred.append("caveats_field_color_bp_rp_gaia_rrlyrae")
+        for subset in sorted(wanted):
+            if selection:
+                preferred.append(selection_docs[subset])
+            preferred.append(f"caveats_{subset}")
+
+        chunks = self.index.chunks
+        prioritized: list[int] = []
+        for doc_id in preferred:
+            candidates = [i for i, chunk in enumerate(chunks) if chunk.doc_id == doc_id]
+            if candidates:
+                best = max(candidates, key=lambda i: (float(lexical[i]), float(dense[i])))
+                if best not in prioritized:
+                    prioritized.append(best)
+        return (prioritized + [i for i in kept_ids if i not in prioritized])[:k]
 
     def search(self, question: str, k: int | None = None) -> SemanticResult:
         k = k or CONFIG.retrieval.top_k_docs
+        from ..verify.subject import detect_subsets
+
+        named_subsets = detect_subsets(question)
+        # A named subject has a directly relevant provenance document;
+        # extra generic documents dilute both the prompt and citations.
+        # Comparisons retain one document for each named subject.
+        if named_subsets:
+            k = min(k, len(named_subsets))
         chunks = self.index.chunks
         if not chunks:
             return SemanticResult(below_threshold=True, reason="empty document index")
@@ -172,7 +192,7 @@ class SemanticRetriever:
                 break
             if i not in kept_ids:
                 kept_ids.append(i)
-        kept_ids = self._ensure_subset_coverage(question, kept_ids, dense, k)
+        kept_ids = self._ensure_subset_coverage(question, kept_ids, dense, lexical, k)
         kept = [(i, fused.get(i, 0.0)) for i in kept_ids[:k]]
 
         evidence = [

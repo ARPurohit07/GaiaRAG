@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
+GALAXY = ROOT.parent / "Galaxy"
 
 
 def _env(name: str, default: str) -> str:
@@ -43,19 +44,19 @@ class Paths:
     galaxy_catalogue: Path = Path(
         _env(
             "GALAXY_CSV",
-            r"C:\Users\rohan\OneDrive\Desktop\Galaxy\web\data\hygdata_web.csv",
+            str(GALAXY / "web" / "data" / "hygdata_web.csv"),
         )
     )
     galaxy_sources: Path = Path(
         _env(
             "GALAXY_SOURCES",
-            r"C:\Users\rohan\OneDrive\Desktop\Galaxy\web\data\SOURCES.txt",
+            str(GALAXY / "web" / "data" / "SOURCES.txt"),
         )
     )
     galaxy_tools: Path = Path(
         _env(
             "GALAXY_TOOLS",
-            r"C:\Users\rohan\OneDrive\Desktop\Galaxy\web\tools",
+            str(GALAXY / "web" / "tools"),
         )
     )
 
@@ -76,11 +77,13 @@ class Models:
     gen_temperature: float = _env_float("GEN_TEMP", 0.0)
     judge_temperature: float = _env_float("JUDGE_TEMP", 0.0)
     timeout_s: int = _env_int("TIMEOUT_S", 600)
+    context_tokens: int = _env_int("CONTEXT_TOKENS", 8192)
+    max_output_tokens: int = _env_int("MAX_OUTPUT_TOKENS", 512)
 
 
 @dataclass(frozen=True)
 class Retrieval:
-    top_k_docs: int = _env_int("TOP_K_DOCS", 6)
+    top_k_docs: int = _env_int("TOP_K_DOCS", 2)
     max_rows: int = _env_int("MAX_ROWS", 40)
     chunk_tokens: int = _env_int("CHUNK_TOKENS", 220)
     chunk_overlap: int = _env_int("CHUNK_OVERLAP", 40)

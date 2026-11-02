@@ -49,12 +49,14 @@ class OllamaRagasLLM(BaseRagasLLM):
         # brief pause instead of a silent stall.
         host: str = "http://127.0.0.1:11434",
         timeout: int = 240,
+        context_tokens: int = 8192,
         disable_thinking: bool = True,
         retries: int = 1,
     ):
         self.model = model
         self.host = host.rstrip("/")
         self.timeout = timeout
+        self.context_tokens = context_tokens
         self.disable_thinking = disable_thinking
         self.retries = retries
         self._supports_think = True
@@ -115,7 +117,12 @@ class OllamaRagasLLM(BaseRagasLLM):
         payload = {
             "model": self.model,
             "stream": False,
-            "options": {"temperature": temperature},
+            "format": "json",
+            "options": {
+                "temperature": temperature,
+                "num_ctx": self.context_tokens,
+                "num_predict": 1024,
+            },
             "messages": [{"role": "user", "content": user}],
         }
         if stop:

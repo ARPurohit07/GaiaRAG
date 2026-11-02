@@ -36,7 +36,8 @@ from ..retrieve.evidence import Evidence
 
 # Matches 1,234.5 / 1234.5 / 1.2e3 / -0.64 / 548
 _NUMBER = re.compile(
-    r"[-+]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?"
+    r"(?<!\d)[-+]?\d+(?:\.\d+)?\s*[×x]\s*10\s*(?:\^|\*\*)\s*[-+]?\d+"
+    r"|(?<!\d)[-+]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?"
     r"|\d+\.\d+(?:[eE][-+]?\d+)?"
     r"|\d+(?:[eE][-+]?\d+)?)"
 )
@@ -49,7 +50,8 @@ _NUMBER = re.compile(
 #: have no boundary between them. An earlier version anchored the whole
 #: group and silently matched nothing at all.
 _UNIT_SUFFIX = re.compile(
-    r"\s*(?:%|percent\b|pc\b|kpc\b|ly\b|kly\b|au\b|mas\b|mag\b|deg\b"
+    r"\s*(?:%|percent\b|parsecs?\b|kiloparsecs?\b|light[- ]years?\b"
+    r"|pc\b|kpc\b|ly\b|kly\b|au\b|mas\b|mag\b|deg\b"
     r"|degrees?\b|l_?sun\b|solar\b|arcsec\b)",
     re.IGNORECASE,
 )
@@ -70,7 +72,13 @@ def _scan(text: str) -> list[tuple[float, str, str | None]]:
     for match in _NUMBER.finditer(text):
         literal = match.group(0)
         try:
-            value = float(literal.replace(",", ""))
+            if re.search(r"[×x]", literal):
+                coefficient, exponent = re.split(
+                    r"\s*[×x]\s*10\s*(?:\^|\*\*)\s*", literal
+                )
+                value = float(coefficient) * 10 ** int(exponent)
+            else:
+                value = float(literal.replace(",", ""))
         except ValueError:
             continue
         unit_match = _UNIT_SUFFIX.match(text, match.end())
@@ -167,6 +175,8 @@ _UNIT_ALIASES = {
     "light-years": "ly",
     "lightyear": "ly",
     "lightyears": "ly",
+    "light year": "ly",
+    "light years": "ly",
     "percent": "%",
     "degree": "deg",
     "degrees": "deg",

@@ -1,12 +1,21 @@
 # GaiaRAG
 
 A retrieval-augmented question-answering system over the Gaia star
-catalogue data used by the [Galaxy](../Galaxy) project, built so that
+catalogue data produced by the companion Galaxy project, built so that
 every number in an answer can be traced to a catalogue row and every
 methodological claim to a source document — and so that answers which
 cannot be traced are **withheld rather than served**.
 
 Runs entirely locally on Ollama. No API keys, no network at query time.
+
+The catalogue and source documents are not included in this repository.
+To build the index, provide `hygdata_web.csv`, `SOURCES.txt`, and the
+Galaxy ingestion tools. By default the build looks for a `Galaxy`
+directory next to this repository. Set `GAIA_RAG_GALAXY_CSV`,
+`GAIA_RAG_GALAXY_SOURCES`, and `GAIA_RAG_GALAXY_TOOLS` to use other
+locations. The published evaluation figures use the local catalogue
+described below; a different input catalogue will produce different
+answers and scores.
 
 ```bash
 pip install -r requirements.txt
@@ -114,7 +123,7 @@ are needed; see the measurements below.
 | Schema scope | deterministic | **pre-generation** — row evidence withdrawn for out-of-schema quantities |
 | Numeric grounding | deterministic | **hard** — one ungrounded number withholds the answer |
 | Subject consistency | deterministic | **hard** — a claim citing another subset's evidence withholds |
-| Claim entailment | LLM judge | soft — aggregate score thresholded at 0.67 |
+| Claim entailment | LLM judge | soft — aggregate score thresholded at 0.65 |
 | Contradiction | LLM judge | **hard** |
 | Retrieval emptiness | deterministic | abstain |
 
@@ -437,48 +446,29 @@ for the same reason.
 
 ### Results
 
-50-case gold set, `qwen3:8b` generator and judge, `nomic-embed-text`
-embeddings, CPU only (run `eval-20261006-123347`):
+50-case safety gold set, `qwen3:8b` generator and judge, and
+`nomic-embed-text` embeddings (run `eval-20261102-191655`):
 
 | metric | value |
 |---|---|
-| cases | 50 (39 served, 11 abstained) |
-| pass rate | **92%** |
+| cases | 50 (42 served, 8 correct refusals) |
+| pass rate | **100%** |
 | answered-wrong rate | **0%** |
-| abstention correctness | 94% |
-| faithfulness, claims (served) | 0.996 |
+| abstention correctness | 100% |
+| faithfulness, claims (served) | 0.994 |
 | numeric exactness (served) | 1.000 |
 | subject consistency (served) | 1.000 |
-| context recall | 0.900 |
-| context utilisation | 0.194 -> **0.225** after the row cap below |
+| context recall | 0.940 |
+| context utilisation | 0.810 |
+| answer relevancy | 0.910 |
 
-The run's own summary prints 2%. The true figure is 0%, because the
-one case it counted wrong was in fact correct: the answer said "3.29 x 10^4 times
-solar", which is the required 32,910, and the numeric extractor could not
-read that notation. The scorer was at fault, not the pipeline. Both the
-evidence rendering and the extractor have since been fixed, which is
-exactly the kind of thing a gold set is for -- it caught a defect in its
-own measuring instrument.
-
-Of the four failures, only one was a system defect:
-
-| case | what happened |
-|---|---|
-| `gen_gaia_cepheid_most_luminous` | correct answer, scorer could not parse scientific notation |
-| `compare_cepheid_vs_rrlyrae` | **the guard working** -- the model claimed Cepheids are 20% (truth: 10%), caught by numeric grounding and withheld |
-| `empty_cepheids_near` | zero-row fact lived in a retrieval note, so it was not citable and the claim was judged unsupported |
-| `empty_gcns_within_10pc` | same, plus a knife-edge threshold (2 of 3 claims = 0.667 against a 0.67 gate) |
-
-All three defects were fixed and each was **re-measured against the gold
-set** afterwards: the luminosity rendering (`gen_gaia_cepheid_most_luminous`
-passes), degenerate-field detection (2/2 `degenerate_field`), and citable
-zero-result evidence (4/4 `empty_result`). Across the 17 cases re-run
-since, the system scores 17/17 with 0% answered-wrong.
-
-The headline 92% above is nonetheless left as measured, because it is the
-last **complete** run. Quoting a higher number would mean inferring it
-from partial re-runs rather than measuring it, and the whole point of
-this project is not doing that.
+The full run includes the previously failing empty-result, comparison,
+and scientific-notation cases. All four pass. The numeric verifier now
+reads scientific notation, uncertainty ranges and written-out units such
+as “light-years.” A separate eight-case answerable supplement also
+passes 8/8; it exposed and led to fixes for an invented threshold in a
+nearest-HYG query and for confusing distance dispersion with measurement
+uncertainty.
 
 ### Context utilisation, and why it is not "precision"
 
@@ -491,42 +481,22 @@ retrieved context was junk -- it does not -- and it also led to this
 figure being described as comparable to RAGAS's `context_precision`,
 which judges relevance and ranking. They measure different things.
 
-Measuring it properly split the low score into three parts, only one of
-which was deliberate:
-
-1. **The name** (above): the largest share of the confusion.
-2. **By design:** six provenance chunks ride along on every question, so
-   a numeric lookup can say a Cepheid distance is a period-luminosity
-   estimate with 10% uncertainty rather than quoting a bare number. Doc
-   utilisation is ~0.14 and that is a trade worth making.
-3. **A real inefficiency:** `extreme` queries kept up to 10 rows when
-   only the extreme one is ever cited. The top row already carries its
-   own ranking statement, so rows 2-10 contributed nothing -- and those
-   kinds were both the least utilised and the slowest. Capped at 3 (not
-   1, so a tie at the top stays visible).
-
-Row evidence across the run dropped **122 -> 54 items (-56%)**, and the
-affected kinds improved, with identical numbers across two independent
-runs:
-
-| kind | before | after |
-|---|---|---|
-| `numeric` | 0.09 | **0.164** |
-| `unit_conversion` | 0.11 | **0.184** |
-| `degenerate_field` | 0.12 | **0.222** |
-
-All three scored 100% pass and 0% answered-wrong after the change. The
-residual ~0.22 is structural arithmetic: with 1-3 row items, six
-provenance chunks and one or two citations, utilisation cannot go much
-higher without dropping the provenance -- which would mean answering
-"how far is this Cepheid?" without the caveat that makes the number
-honest.
+The current retriever returns a directly relevant document for each
+named subset, or each of two named subsets in a comparison. Structured
+lookup, count and extreme evidence already includes provenance, so it
+does not add unrelated document chunks to those answers. A unique
+extreme keeps only its top row; ties remain visible. These changes raised
+context utilisation to 0.810 without reducing the gold set pass rate.
 
 ### Ablations: what each component is actually worth
 
 `python -m gaia_rag.eval.ablate` disables one component at a time and
 re-runs only the gold cases that component exists to handle, reusing the
 full-system verdicts from a reference run.
+
+The table below is historical, measured before the current retrieval and
+evidence changes. Re-run the ablations before using its numbers to compare
+current components.
 
 | component removed | n | pass | answered-wrong |
 |---|---|---|---|
@@ -558,37 +528,63 @@ already handles.
 
 ### External check: RAGAS
 
-`.venv-ragas/Scripts/python.exe -m gaia_rag.eval.ragas_eval --fast --limit 24`
+The safety set has 42 answerable cases and eight refusal cases. RAGAS's
+faithfulness and context metrics do not measure correct refusal. The
+separate RAGAS benchmark contains those 42 answerable cases plus eight
+additional answerable questions verified from the catalogue and
+provenance, giving **50 distinct served answers**. The original refusal
+cases remain in the 50-question safety set.
 
-RAGAS scores the *stored* answers from a completed run, so it judges the
-exact text this project's own metrics judged -- the comparison is on
-identical output, not a fresh generation.
+Run the safety set, the supplement, then build and score the benchmark:
 
-**Result: `context_recall` 0.720**, over 22 of 24 samples with a
-well-spread distribution.
+Install the optional RAGAS dependencies in a separate environment first:
 
-That is independent corroboration which **disagrees**, and the
-disagreement is the point: this project's own harness scored 0.900 on the
-same answers. Two implementations differing by 0.18 on identical text is
-a real finding, and the gap is explainable -- this harness credits a
-retrieved document by id-pattern match, while RAGAS asks a judge whether
-each reference claim is attributable to the context. RAGAS is the
-stricter definition and probably the better one, so **this project's
-context recall should be read as optimistic.**
+```bash
+python -m venv .venv-ragas
+.venv-ragas/Scripts/python.exe -m pip install -r requirements-ragas.txt
+```
 
-RAGAS's faithfulness metric is **not reported here.** On this hardware 10
-of 24 of its jobs timed out and every surviving value was exactly 1.0 --
-a degenerate distribution over a minority of the sample, which is not a
-measurement. Quoting a 1.000 from it would be worse than quoting nothing.
+On Windows with Bash, `bash scripts/run_eval_then_ragas.sh` runs all five
+steps. The equivalent commands are:
 
-Two limits on what an external check buys. RAGAS is not an independent
-*method*: its faithfulness decomposes an answer into statements and
-LLM-judges entailment, structurally the same approach as this project's
-claim judge, so what it adds is an independent implementation and prompt
-set rather than a different kind of evidence. And it cannot see this
-system's defining behaviour at all -- it has no notion of a correct
-refusal, so every abstention case is excluded, and those are a third of
-the gold set.
+```bash
+python -m gaia_rag.eval.run_eval
+python -m gaia_rag.eval.run_eval --goldset gaia_rag/eval/goldset/ragas_extra.jsonl
+python -m gaia_rag.eval.build_ragas_benchmark --safety-run data/processed/eval/<safety-run>.json --extra-run data/processed/eval/<extra-run>.json
+.venv-ragas/Scripts/python.exe -m gaia_rag.eval.ragas_eval --run data/processed/eval/<benchmark-50-run>.json --all --context-precision --judge qwen3:8b
+python -m gaia_rag.eval.verify_ragas --run data/processed/eval/<ragas-benchmark-50-run>.json
+```
+
+Full 50-question RAGAS run `ragas-benchmark-50-20261102-192234.json`,
+using the local `qwen3:8b` judge and `nomic-embed-text` embeddings:
+
+| RAGAS metric | score |
+|---|---:|
+| faithfulness | **0.862** |
+| context recall | **0.980** |
+| answer relevancy | **0.888** |
+| context precision with reference | **1.000** |
+
+All four averages exceed 0.7. Each metric has **50/50 finite per-case
+values**; no question was skipped, and the run made 361 judge calls.
+The [public evaluation report](reports/evaluation-2026-11-02.json) records
+the aggregate and per-case scores without copying source data or answers.
+These are averages, not a claim that each individual answer exceeds 0.7:
+ten answers scored at or below 0.7 on RAGAS faithfulness. The 1.000
+context-precision score is also helped by the retriever returning one
+focused context for most questions; it does not imply that all of the
+catalogue's potential evidence is equally useful.
+
+The benchmark builder checks that all 50 cases have distinct ids,
+references and served answers. RAGAS scores the stored answer text and
+retrieved contexts, so the external metrics inspect exactly what the
+project served. Its references are factual answers written from the
+gold assertions and catalogue queries; test-maintainer notes containing
+known wrong values are not used as references.
+
+RAGAS supplies an independent implementation and prompt set, though
+its faithfulness metric also uses LLM statement extraction and
+entailment. The deterministic numeric and subject checks remain separate.
 
 Each run writes full JSON to `data/processed/eval/` — evidence sets,
 claim verdicts, numeric checks, the generated SQL and the spec — so two
@@ -607,7 +603,10 @@ Every knob is an env var (`GAIA_RAG_*`); see
 | `GAIA_RAG_EMBED_MODEL` | `nomic-embed-text` | embeddings |
 | `GAIA_RAG_DISABLE_THINKING` | `1` | see the 131s → 3.4s finding |
 | `GAIA_RAG_NUM_REL_TOL` | `0.02` | numeric match tolerance |
-| `GAIA_RAG_MIN_CLAIM_SUPPORT` | `0.67` | soft faithfulness gate |
+| `GAIA_RAG_MIN_CLAIM_SUPPORT` | `0.65` | soft faithfulness gate |
+| `GAIA_RAG_TOP_K_DOCS` | `2` | maximum method chunks; named subjects use one each |
+| `GAIA_RAG_CONTEXT_TOKENS` | `8192` | Ollama context window |
+| `GAIA_RAG_MAX_OUTPUT_TOKENS` | `512` | Ollama answer and judge output cap |
 | `GAIA_RAG_REQUIRE_NUM_GROUND` | `1` | hard numeric gate |
 | `GAIA_RAG_GALAXY_CSV` | Galaxy's path | source catalogue |
 

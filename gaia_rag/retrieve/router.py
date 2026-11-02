@@ -123,6 +123,21 @@ class Router:
             bundle.row_count = 0
             bundle.notes.append(scope.note())
 
+        # These structured results include their own provenance. Returning
+        # them directly avoids an unrelated document and an embedding call.
+        if bundle.rows and bundle.spec and bundle.spec.intent in {
+            "lookup", "aggregate", "extreme"
+        }:
+            q = question.lower()
+            constant_field_question = (
+                bundle.spec.intent == "extreme"
+                and "gaia_rrlyrae" in bundle.spec.subsets
+                and any(word in q for word in ("lumin", "reddest", "colour", "color"))
+            )
+            if not constant_field_question:
+                bundle.evidence = list(bundle.rows)
+                return bundle
+
         # --- semantic half
         semantic_result = self.semantic.search(question)
         bundle.best_doc_score = semantic_result.best_score

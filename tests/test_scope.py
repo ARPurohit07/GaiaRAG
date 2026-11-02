@@ -91,6 +91,52 @@ def _retriever() -> StructuredRetriever:
     return StructuredRetriever()
 
 
+def test_nearest_hyg_ignores_invented_name_and_threshold():
+    retriever = _retriever()
+    try:
+        llm = SpecLLM({
+            "intent": "filter", "name": "HYG", "subsets": ["hyg"],
+            "filters": [{"field": "dist_pc", "op": "<", "value": 10}],
+            "order_by": {"field": "dist_pc", "dir": "asc"}, "limit": 1,
+        })
+        spec = retriever.plan(
+            "What is the nearest HYG star distance in parsecs in this catalogue?",
+            llm,
+        )
+        assert spec.intent == "extreme"
+        assert spec.name is None and not spec.filters
+        result = retriever.run(spec)
+        assert abs(result.evidence[0].numeric_facts[0].value - 1.2959) < 0.01
+    finally:
+        retriever.close()
+
+
+def test_distance_uncertainty_does_not_become_catalogue_dispersion():
+    retriever = _retriever()
+    try:
+        spec = retriever.plan(
+            "How uncertain are the distances of the luminous Gaia DR3 stars?",
+            SpecLLM({"intent": "aggregate", "aggregate": {"fn": "stddev", "field": "dist_pc"}}),
+        )
+        assert spec.limit == 0 and spec.intent == "filter"
+        assert spec.subsets == ["gaia_dr3_luminous"]
+        assert not retriever.run(spec).evidence
+    finally:
+        retriever.close()
+
+
+def test_count_evidence_names_the_counted_rows():
+    retriever = _retriever()
+    try:
+        spec = QuerySpec.from_dict({
+            "intent": "aggregate", "subsets": ["gaia_rrlyrae"],
+            "aggregate": {"fn": "count", "field": "subset"},
+        })
+        assert retriever.run(spec).evidence[0].evidence_id == "agg:count:rows"
+    finally:
+        retriever.close()
+
+
 def test_invented_subset_is_dropped_for_superlatives():
     """For an extreme query the scope is the answer, so the model may not
     narrow it unprompted.
@@ -476,7 +522,7 @@ def test_aggregate_states_what_it_counts():
         )
         result = retriever.run(spec)
         text = result.evidence[0].text
-        assert "one catalogue row is one star" in text, text
+        assert "one catalogue row is one star" in text.lower(), text
         assert "not a count of any other kind of object" in text, text
     finally:
         retriever.close()

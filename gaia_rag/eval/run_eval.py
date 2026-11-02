@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from gaia_rag.config import CONFIG  # noqa: E402
-from gaia_rag.eval.metrics import Summary, score_case  # noqa: E402
+from gaia_rag.eval.metrics import CaseResult, Summary, score_case  # noqa: E402
 from gaia_rag.generate.answer import GaiaRAG  # noqa: E402
 from gaia_rag.generate.prompts import (  # noqa: E402
     RELEVANCE_SYSTEM,
@@ -60,6 +60,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Evaluate the Gaia RAG.")
     parser.add_argument("--only", help="run a single case by id")
     parser.add_argument("--kind", help="run only cases of this kind")
+    parser.add_argument("--goldset", type=Path, default=GOLDSET,
+                        help="JSONL question set (default: 50-case safety set)")
+    parser.add_argument("--resume", type=Path,
+                        help="resume a previously interrupted progress JSONL")
     parser.add_argument(
         "--no-relevancy",
         action="store_true",
@@ -67,7 +71,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    cases = load_goldset()
+    cases = load_goldset(args.goldset)
     if args.only:
         cases = [c for c in cases if c["id"] == args.only]
     if args.kind:
@@ -80,11 +84,22 @@ def main() -> int:
     rag = GaiaRAG()
     judge = None if args.no_relevancy else get_llm("judge")
 
-    results = []
-    records = []
+    progress_path = args.resume or (
+        CONFIG.paths.eval_out / f"eval-progress-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
+    )
+    records = (
+        [json.loads(line) for line in progress_path.read_text(encoding="utf-8").splitlines()]
+        if args.resume else []
+    )
+    if [r["case"]["id"] for r in records] != [c["id"] for c in cases[:len(records)]]:
+        raise ValueError("resume file does not match this question set")
+    results = [CaseResult(**r["result"]) for r in records]
+    print(f"progress file: {progress_path} ({len(records)} completed)")
     started = time.time()
     try:
         for i, case in enumerate(cases, 1):
+            if i <= len(records):
+                continue
             t0 = time.time()
             print(f"[{i}/{len(cases)}] {case['id']} ... ", end="", flush=True)
             answer = rag.ask(case["question"])
@@ -145,6 +160,8 @@ def main() -> int:
                     "seconds": round(elapsed, 1),
                 }
             )
+            with progress_path.open("a", encoding="utf-8") as progress:
+                progress.write(json.dumps(records[-1], default=str) + "\n")
     finally:
         rag.close()
 

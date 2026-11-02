@@ -14,6 +14,7 @@ qualitative statement is entailed by a passage.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 from ..generate.prompts import JUDGE_SYSTEM, judge_user_prompt
@@ -131,11 +132,52 @@ class ClaimJudge:
     def judge(self, claims: list[dict], evidence: list[Evidence]) -> ClaimReport:
         index = {e.evidence_id: e for e in evidence}
         report = ClaimReport()
+        pending = []
         for claim in claims:
             text = str(claim.get("text", "")).strip()
             if not text:
                 continue
             cited_ids = [str(c) for c in (claim.get("evidence_ids") or [])]
             cited = [index[cid] for cid in cited_ids if cid in index]
+            pending.append((text, cited, cited_ids))
+
+        # The judge used to make one model call per claim. A typical answer
+        # has three claims, all against short cited passages. Evaluate them
+        # together while retaining per-claim citations and verdicts. If the
+        # model cannot obey the batch schema, fall back to the old path.
+        if len(pending) > 1 and all(cited for _text, cited, _ids in pending):
+            items = [
+                {"claim": text, "evidence": [e.render() for e in cited]}
+                for text, cited, _ids in pending
+            ]
+            system = (
+                JUDGE_SYSTEM.split("Reply with ONLY", 1)[0]
+                + "\nJudge each item independently against only its own evidence. "
+                "Return JSON: {\"verdicts\":[{\"verdict\":\"supported|partial|"
+                "unsupported|contradicted\",\"reason\":\"...\","
+                "\"offending_span\":null}, ...]} in the same order."
+            )
+            try:
+                raw = self.llm.complete_json(system, json.dumps(items), temperature=0.0)
+                verdicts = raw.get("verdicts")
+                if isinstance(verdicts, list) and len(verdicts) == len(pending) and all(
+                    isinstance(v, dict) and v.get("verdict") in VERDICTS for v in verdicts
+                ):
+                    for (text, cited, cited_ids), v in zip(pending, verdicts):
+                        report.verdicts.append(ClaimVerdict(
+                            claim=text,
+                            cited_ids=cited_ids,
+                            verdict=v["verdict"],
+                            reason=str(v.get("reason", ""))[:400],
+                            offending_span=v.get("offending_span") or None,
+                            missing_citations=[
+                                cid for cid in cited_ids if cid not in {e.evidence_id for e in cited}
+                            ],
+                        ))
+                    return report
+            except (RuntimeError, ValueError):
+                pass
+
+        for text, cited, cited_ids in pending:
             report.verdicts.append(self.judge_one(text, cited, cited_ids))
         return report

@@ -1,0 +1,3 @@
+# Used for the optional external RAGAS benchmark.
+ragas==0.2.14
+langchain-ollama==0.2.3

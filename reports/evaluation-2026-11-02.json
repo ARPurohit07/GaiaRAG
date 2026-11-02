@@ -1,0 +1,385 @@
+{
+  "date": "2026-11-02",
+  "safety": {
+    "questions": 50,
+    "served": 42,
+    "correct_refusals": 8,
+    "pass_rate": 1.0,
+    "answered_wrong_rate": 0.0,
+    "faithfulness_served": 0.9940476190476191,
+    "context_recall": 0.94,
+    "answer_relevancy": 0.91
+  },
+  "ragas": {
+    "questions": 50,
+    "skipped": 0,
+    "judge": "qwen3:8b",
+    "embeddings": "nomic-embed-text",
+    "judge_calls": 361,
+    "metric_scores": {
+      "faithfulness": 0.862143,
+      "context_recall": 0.98,
+      "answer_relevancy": 0.887573,
+      "llm_context_precision_with_reference": 1.0
+    },
+    "valid_cases_per_metric": {
+      "faithfulness": 50,
+      "context_recall": 50,
+      "answer_relevancy": 50,
+      "llm_context_precision_with_reference": 50
+    },
+    "cases": [
+      {
+        "id": "reliability_rrlyrae",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8482275707,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "reliability_cepheid",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8356662572,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "reliability_gcns",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9258965791,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "reliability_apogee",
+        "faithfulness": 0.4,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8661877587,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "attribution_betelgeuse",
+        "faithfulness": 0.6,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.0,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "attribution_vega",
+        "faithfulness": 0.75,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8104387606,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "attribution_sirius",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8689416133,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "attribution_proxima_centauri",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8621557212,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "rrlyrae_luminosity_is_constant",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.0,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "rrlyrae_colour_is_constant",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9172302878,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "empty_cepheids_near",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9557715514,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "empty_gcns_far",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.7913036157,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "empty_cepheids_beyond_30kpc",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9114882737,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "empty_gcns_within_10pc",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 1.0,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "compare_gcns_vs_rrlyrae",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9494119053,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "compare_cepheid_vs_rrlyrae",
+        "faithfulness": 0.8571428571,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9578142669,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "compare_gcns_vs_apogee",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8341841058,
+        "llm_context_precision_with_reference": 1.0
+      },
+      {
+        "id": "method_cepheid",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9393989158,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "method_rrlyrae",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9159816126,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "method_gcns",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 1.0,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "method_luminous",
+        "faithfulness": 0.75,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9691720085,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "method_apogee",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9117436848,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "selection_parallax_cut",
+        "faithfulness": 0.75,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9794445893,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "selection_cepheid_table",
+        "faithfulness": 0.5,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.993984728,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "selection_cepheid_classification",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9550749913,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "selection_distance_range",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 1.0,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "farthest_gaia_overall",
+        "faithfulness": 0.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9520363331,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "nearest_gaia_overall",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9446396247,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ambiguous_scope_count",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9844217037,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gcns_nearest_in_ly",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8969039968,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_farthest",
+        "faithfulness": 0.5,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9460094671,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_nearest",
+        "faithfulness": 0.5,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9197041224,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_count",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9912099133,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_count_within",
+        "faithfulness": 0.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9437626502,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_count_beyond",
+        "faithfulness": 0.3333333333,
+        "context_recall": 0.0,
+        "answer_relevancy": 0.6961088719,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_farthest_ly",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9042605732,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_farthest_kpc",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8821887667,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_avg_distance",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9639264818,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_most_luminous",
+        "faithfulness": 0.6666666667,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9391580753,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_cepheid_reddest",
+        "faithfulness": 0.5,
+        "context_recall": 1.0,
+        "answer_relevancy": 1.0,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_rrlyrae_farthest_ly",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.901465106,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "gen_gaia_rrlyrae_farthest_kpc",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.8914419011,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_rrlyrae_count",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9914616879,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_gcns_count",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9069325707,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_luminous_count",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9902376943,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_apogee_count",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9731294992,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_hyg_count",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9611928481,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_gcns_farthest",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.939543895,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_hyg_nearest",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9417204069,
+        "llm_context_precision_with_reference": 0.9999999999
+      },
+      {
+        "id": "ragas_luminous_reliability",
+        "faithfulness": 1.0,
+        "context_recall": 1.0,
+        "answer_relevancy": 0.9176735513,
+        "llm_context_precision_with_reference": 0.9999999999
+      }
+    ]
+  },
+  "note": "RAGAS values are averages over 50 answerable questions. Eight separate refusal cases are retained in the safety evaluation. Raw contexts and answers are excluded from this public report."
+}

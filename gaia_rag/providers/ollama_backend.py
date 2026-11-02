@@ -139,7 +139,11 @@ class OllamaLLM:
         return {
             "model": self.name,
             "stream": False,
-            "options": {"temperature": temperature},
+            "options": {
+                "temperature": temperature,
+                "num_ctx": CONFIG.models.context_tokens,
+                "num_predict": CONFIG.models.max_output_tokens,
+            },
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

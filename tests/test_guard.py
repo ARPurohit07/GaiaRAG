@@ -42,6 +42,17 @@ class StubLLM:
         return ""
 
 
+class BatchStubLLM(StubLLM):
+    def complete_json(self, system, user, *, temperature=0.0):
+        self.calls += 1
+        assert "Judge each item independently" in system
+        assert len(__import__("json").loads(user)) == 2
+        return {"verdicts": [
+            {"verdict": "supported", "reason": "cited", "offending_span": None},
+            {"verdict": "unsupported", "reason": "not cited", "offending_span": "claim"},
+        ]}
+
+
 def rrlyrae_doc() -> Evidence:
     return Evidence(
         evidence_id="doc:caveats_gaia_rrlyrae#0",
@@ -113,9 +124,42 @@ def test_wrong_number_is_caught():
     assert "ungrounded" in report.summary()
 
 
+def test_written_out_unit_is_still_checked():
+    report = verify_numbers("The distance is 24952 light-years.", [cepheid_row()])
+    assert not report.passed, report.summary()
+
+
 def test_invented_number_is_caught():
     report = verify_numbers("The distance is 4,321 pc.", [cepheid_row()])
     assert not report.passed
+
+
+def test_scientific_notation_is_checked_as_one_value():
+    evidence = [Evidence(
+        evidence_id="row:cepheid:max_lum", kind="row",
+        text="Luminosity 32,910 times solar.", citation="catalogue",
+        numeric_facts=[NumericFact("lum_lsun", 32910.0, "Lsun")],
+    )]
+    good = verify_numbers("Luminosity is 3.29 × 10^4 times solar.", evidence)
+    bad = verify_numbers("Luminosity is 3.29 × 10^5 times solar.", evidence)
+    assert good.passed, good.summary()
+    assert not bad.passed
+    assert len(bad.unmatched) == 1
+
+
+def test_uncertainty_range_is_not_a_negative_number():
+    report = verify_numbers("The uncertainty is 20%.", [rrlyrae_doc()])
+    assert report.passed, report.summary()
+
+
+def test_claims_are_judged_in_one_batch_with_separate_verdicts():
+    llm = BatchStubLLM()
+    report = ClaimJudge(llm).judge([
+        {"text": "RR Lyrae uncertainty is 18%.", "evidence_ids": [rrlyrae_doc().evidence_id]},
+        {"text": "RR Lyrae uncertainty is 1%.", "evidence_ids": [rrlyrae_doc().evidence_id]},
+    ], [rrlyrae_doc()])
+    assert llm.calls == 1
+    assert [v.verdict for v in report.verdicts] == ["supported", "unsupported"]
 
 
 def test_percentage_from_wrong_document_is_caught_numerically():

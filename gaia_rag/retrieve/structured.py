@@ -15,6 +15,7 @@ fail that way.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,15 @@ VALID_SUBSETS = (
     "hyg",
 )
 
+SUBSET_LABELS = {
+    "gaia_gcns": "Gaia GCNS stars",
+    "gaia_cepheid": "Gaia DR3 classical Cepheid stars",
+    "gaia_rrlyrae": "Gaia DR3 RR Lyrae stars",
+    "gaia_dr3_luminous": "luminous Gaia DR3 stars",
+    "apogee": "APOGEE stars (not Gaia-only measurements)",
+    "hyg": "HYG stars (not Gaia measurements)",
+}
+
 
 class SpecError(ValueError):
     """The model produced a spec that cannot be compiled safely."""
@@ -107,7 +117,7 @@ class QuerySpec:
             subsets=[str(s) for s in (raw.get("subsets") or [])],
             filters=list(raw.get("filters") or []),
             order_by=raw.get("order_by") or None,
-            limit=int(raw.get("limit") or 10),
+            limit=int(raw.get("limit", 10)),
             aggregate=raw.get("aggregate") or None,
             gaia_only=bool(raw.get("gaia_only", True)),
         )
@@ -173,7 +183,7 @@ class QuerySpec:
                 raise SpecError(f"cannot aggregate {self.aggregate.get('field')!r}")
         # A hard cap: an answer cannot faithfully summarise 10,000 rows,
         # and a huge result set just dilutes the prompt.
-        self.limit = max(1, min(int(self.limit), CONFIG.retrieval.max_rows))
+        self.limit = max(0, min(int(self.limit), CONFIG.retrieval.max_rows))
 
         # A superlative needs the extreme row, not ten of them. Planners
         # routinely emit `limit: 10` for "the most distant X", and since
@@ -279,7 +289,8 @@ Cepheids -> gaia_cepheid, RR Lyrae -> gaia_rrlyrae, nearby stars -> \
 gaia_gcns, luminous/distant OB stars -> gaia_dr3_luminous.
 
 If the question needs no catalogue rows at all (it asks about methods, \
-reliability or provenance), return {"intent":"filter","limit":0}."""
+reliability, provenance, or how a sample was selected), return \
+{"intent":"filter","limit":0}."""
 
 
 @dataclass
@@ -328,6 +339,19 @@ class StructuredRetriever:
         }
 
     def plan(self, question: str, llm) -> QuerySpec:
+        detected = detect_subsets(question)
+        q = question.lower()
+        # A sample's distance dispersion is not its measurement error.
+        # Planners can turn "how uncertain are these distances" into
+        # stddev(dist_pc), a valid SQL query for the wrong quantity. Such
+        # questions are answered from provenance documents instead.
+        if "distances" in q and re.search(
+            r"\b(reliab\w*|uncertain\w*|precis\w*|accurac\w*)\b", q
+        ):
+            spec = QuerySpec(intent="filter", subsets=sorted(detected), limit=0)
+            spec.validate()
+            return spec
+
         raw = llm.complete_json(PLANNER_SYSTEM, question, temperature=0.0)
         spec = QuerySpec.from_dict(raw)
 
@@ -363,7 +387,6 @@ class StructuredRetriever:
         # not narrow it unprompted. For `lookup` and `filter` the scope
         # merely selects which rows are shown, and an empty named lookup
         # is already recovered by the widening in `run()`.
-        detected = detect_subsets(question)
         if detected:
             spec.subsets = sorted(detected)
             spec.filters = [
@@ -384,10 +407,26 @@ class StructuredRetriever:
         # and does so silently. An unambiguous signal in the wording
         # therefore overrides the model's choice, exactly as it does
         # for subsets.
-        if spec.intent == "extreme" or spec.order_by:
-            inferred = infer_extreme_order(question)
-            if inferred is not None:
-                spec.order_by = inferred
+        inferred = infer_extreme_order(question)
+        if inferred is not None and spec.intent != "aggregate":
+            spec.intent = "extreme"
+            spec.order_by = inferred
+            # A superlative with no threshold in the question must not
+            # acquire a model-invented numeric bound. "Nearest HYG star"
+            # was silently turned into "HYG stars under 10 pc".
+            if not re.search(r"\d", question):
+                spec.filters = [
+                    f for f in spec.filters if f.get("field") not in {
+                        "dist_pc", "dist_ly", "dist_kpc", "ra_deg", "dec_deg",
+                        "color_bp_rp", "lum_lsun",
+                    }
+                ]
+            # A subset name is a category, not a star's proper name.
+            if spec.name and spec.name.lower() in {
+                "gaia", "gcns", "cepheid", "cepheids", "rr lyrae",
+                "luminous", "apogee", "hyg",
+            }:
+                spec.name = None
 
         spec.validate()
         return spec
@@ -464,8 +503,10 @@ class StructuredRetriever:
             value = rows[0].get("value")
             n_rows = int(rows[0].get("n_rows") or 0)
             fn = str(spec.aggregate["fn"]).lower()
-            target = spec.aggregate.get("field", "rows")
-            scope = ", ".join(spec.subsets) if spec.subsets else (
+            target = "rows" if fn == "count" else spec.aggregate.get("field")
+            scope = ", ".join(
+                f"{SUBSET_LABELS[s]} ({s})" for s in spec.subsets
+            ) if spec.subsets else (
                 "all Gaia subsets" if spec.gaia_only else "the whole catalogue"
             )
             # The counted noun is stated explicitly. Left as a bare
@@ -479,12 +520,25 @@ class StructuredRetriever:
                 if fn == "count"
                 else f"the {target} column of stars"
             )
-            text = (
-                f"Aggregate {fn}({target}) over {scope} with the stated "
-                f"filters = {value!r}. This counts {counted}, computed from "
-                f"{n_rows:,} matching catalogue rows. It is not a count of "
-                "any other kind of object."
-            )
+            if fn == "count":
+                counted_stars = ", ".join(
+                    SUBSET_LABELS[s] for s in spec.subsets
+                ) if spec.subsets else (
+                    "Gaia stars across all Gaia subsets"
+                    if spec.gaia_only else "stars in the whole catalogue"
+                )
+                text = (
+                    f"The catalogue contains {n_rows:,} {counted_stars} "
+                    "under the stated filters. One catalogue row is one star. "
+                    "This is a DuckDB count(*) over the matching star rows; "
+                    "it is not a count of any other kind of object."
+                )
+            else:
+                text = (
+                    f"Aggregate {fn}({target}) over {scope} with the stated "
+                    f"filters = {value!r}. This computes {counted} from "
+                    f"{n_rows:,} matching catalogue rows."
+                )
             numeric = []
             if isinstance(value, (int, float)):
                 from ..units import distance_renderings
@@ -635,12 +689,25 @@ class StructuredRetriever:
                     + " one under these filters."
                 )
 
+        # The first row establishes a unique extreme when its value differs
+        # from the runner-up. Keep tied rows, but avoid feeding unrelated
+        # runner-up rows to generation and relevance evaluation.
+        if spec.intent == "extreme" and evidence and spec.order_by:
+            field_name = spec.order_by["field"]
+            first_value = rows[0].get(field_name)
+            tied = 1
+            for row in rows[1:]:
+                if row.get(field_name) != first_value:
+                    break
+                tied += 1
+            evidence = evidence[:tied]
+
         return StructuredResult(
             spec,
             sql,
             params,
             evidence=evidence,
-            row_count=len(rows),
+            row_count=len(evidence),
             widened_beyond_gaia=widened,
         )
 

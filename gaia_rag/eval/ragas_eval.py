@@ -47,6 +47,64 @@ sys.path.insert(0, str(ROOT))
 
 EVAL_DIR = ROOT / "data" / "processed" / "eval"
 
+# Independent reference answers, written from the verified gold cases and
+# catalogue queries. The gold set's `note` is a test-maintainer note: many
+# notes deliberately name WRONG values, SQL, and regression history. Using
+# those notes as RAGAS ground truth makes context recall measure whether the
+# retriever found the distractors, not whether it found the answer.
+REFERENCES = {
+    "reliability_rrlyrae": "RR Lyrae distances are derived from an assumed absolute magnitude with colour-based reddening and are accurate to roughly 15-20%.",
+    "reliability_cepheid": "Cepheid distances use a Wesenheit period-luminosity relation and have about 10% typical relative uncertainty.",
+    "reliability_gcns": "GCNS distances use Gaia EDR3 parallax inversion and are precise to well under 1% nearby.",
+    "reliability_apogee": "APOGEE StarHorse distances combine spectroscopy, photometry and Gaia parallaxes and were selected to have under 25% error.",
+    "attribution_betelgeuse": "Betelgeuse has no Gaia distance in this catalogue; its listed distance comes from the HYG catalogue.",
+    "attribution_vega": "Vega has no Gaia distance in this catalogue; its listed distance comes from the HYG catalogue.",
+    "attribution_sirius": "Sirius has no Gaia distance in this catalogue; its listed distance comes from the HYG catalogue.",
+    "attribution_proxima_centauri": "Proxima Centauri has no Gaia distance in this catalogue; its listed distance comes from the HYG catalogue.",
+    "rrlyrae_luminosity_is_constant": "All RR Lyrae rows have the same assumed luminosity of 45 solar luminosities, so no individual star is most luminous.",
+    "rrlyrae_colour_is_constant": "All RR Lyrae rows have the same assumed BP-RP colour of 0.35, so no individual star is reddest.",
+    "absent_parallax": "The catalogue has no parallax column, so this star's parallax cannot be given from it.",
+    "absent_temperature": "The catalogue has no temperature column, so this star's temperature cannot be given from it.",
+    "absent_period": "The catalogue has no period column, so this star's period cannot be given from it.",
+    "absent_mass": "The catalogue has no mass column, so this star's mass cannot be given from it.",
+    "ood_capital": "The Gaia star catalogue does not answer this unrelated geography question.",
+    "ood_recipe": "The Gaia star catalogue does not answer this unrelated cooking question.",
+    "ood_programming": "The Gaia star catalogue does not answer this unrelated programming question.",
+    "ood_medical": "The Gaia star catalogue does not answer this unrelated medical question.",
+    "empty_cepheids_near": "There are no classical Cepheids within 100 parsecs in this catalogue.",
+    "empty_gcns_far": "There are no GCNS stars beyond 500 parsecs in this catalogue.",
+    "empty_cepheids_beyond_30kpc": "There are no Cepheids beyond 30 kiloparsecs in this catalogue.",
+    "empty_gcns_within_10pc": "There are no GCNS stars within 10 parsecs in this catalogue.",
+    "compare_gcns_vs_rrlyrae": "GCNS parallax distances are precise to under 1%, while RR Lyrae standard-candle distances are accurate to roughly 15-20%.",
+    "compare_cepheid_vs_rrlyrae": "Cepheid period-luminosity distances have about 10% uncertainty, while RR Lyrae distances are accurate to roughly 15-20%.",
+    "compare_gcns_vs_apogee": "GCNS parallax distances are precise to under 1%, while APOGEE StarHorse distances were selected to under 25% error.",
+    "method_cepheid": "Cepheid distances use the Wesenheit period-luminosity relation of Ripepi et al. 2022, not parallax.",
+    "method_rrlyrae": "RR Lyrae distances use a fixed absolute magnitude M_G = 0.64 and a colour-based reddening estimate following Muraveva et al. 2018.",
+    "method_gcns": "GCNS distances come from Gaia EDR3 parallax inversion for nearby stars within about 100 parsecs.",
+    "method_luminous": "The luminous Gaia DR3 sample uses Bailer-Jones et al. 2021 geometric distances from EDR3 parallaxes.",
+    "method_apogee": "APOGEE distances are computed by StarHorse using spectroscopy, photometry and Gaia parallaxes.",
+    "selection_parallax_cut": "The luminous Gaia DR3 sample requires parallax_over_error greater than 5.",
+    "selection_cepheid_table": "The Cepheids were selected from gaiadr3.vari_cepheid.",
+    "selection_cepheid_classification": "The Cepheids require type_best_classification DCEP and a period greater than 1.5 days.",
+    "selection_distance_range": "The luminous Gaia DR3 sample was restricted to Bailer-Jones geometric distances from 1000 to 5000 parsecs.",
+    "farthest_gaia_overall": "The most distant Gaia star in the catalogue is an RR Lyrae star at 29999.2 parsecs.",
+    "nearest_gaia_overall": "The nearest Gaia star in the catalogue is a GCNS star at 29.83 parsecs.",
+    "ambiguous_scope_count": "The catalogue has 120000 Gaia stars across all Gaia subsets.",
+    "gcns_nearest_in_ly": "The nearest GCNS star is at 29.83 parsecs, or 97.29 light-years.",
+    "gen_gaia_cepheid_farthest": "The farthest Gaia Cepheid is at 24952.0 parsecs.",
+    "gen_gaia_cepheid_nearest": "The nearest Gaia Cepheid is at 263.90 parsecs.",
+    "gen_gaia_cepheid_count": "There are 2187 Gaia Cepheids in the catalogue.",
+    "gen_gaia_cepheid_count_within": "There are 1092 Gaia Cepheids within 6.8 kiloparsecs.",
+    "gen_gaia_cepheid_count_beyond": "There are 1095 Gaia Cepheids beyond 6.8 kiloparsecs.",
+    "gen_gaia_cepheid_farthest_ly": "The farthest Gaia Cepheid is at 81383 light-years.",
+    "gen_gaia_cepheid_farthest_kpc": "The farthest Gaia Cepheid is at 24.95 kiloparsecs.",
+    "gen_gaia_cepheid_avg_distance": "The average Gaia Cepheid distance is 8443.64 parsecs.",
+    "gen_gaia_cepheid_most_luminous": "The most luminous Gaia Cepheid has a luminosity of 32910.0 solar luminosities.",
+    "gen_gaia_cepheid_reddest": "The reddest Gaia Cepheid has a BP-RP colour of 1.050.",
+    "gen_gaia_rrlyrae_farthest_ly": "The farthest Gaia RR Lyrae star is at 97844 light-years.",
+    "gen_gaia_rrlyrae_farthest_kpc": "The farthest Gaia RR Lyrae star is at 30.00 kiloparsecs.",
+}
+
 # RAGAS calls OpenAI by default if nothing is configured; make a missing
 # configuration fail loudly rather than reach for a hosted endpoint.
 os.environ.setdefault("OPENAI_API_KEY", "not-used-local-only")
@@ -78,6 +136,10 @@ def build_reference(case: dict) -> str:
     plus the required values. These are verified facts, not a model's
     idea of a good answer.
     """
+    if case.get("reference"):
+        return str(case["reference"])
+    if case["id"] in REFERENCES:
+        return REFERENCES[case["id"]]
     parts = []
     if case.get("must_contain_numbers"):
         values = ", ".join(str(v) for v in case["must_contain_numbers"])
@@ -104,7 +166,10 @@ def stratified(cases: list[dict], limit: int | None) -> list[dict]:
         return cases
     by_kind: dict[str, list[dict]] = defaultdict(list)
     for case in cases:
-        by_kind[case.get("kind", "unspecified")].append(case)
+        # Eval records wrap the gold case under `case`. Looking for
+        # `kind` on the outer record silently selected a plain prefix.
+        gold_case = case.get("case", case)
+        by_kind[gold_case.get("kind", "unspecified")].append(case)
     picked: list[dict] = []
     while len(picked) < limit:
         progressed = False
@@ -183,7 +248,8 @@ def main() -> int:
         [r for r, _c in usable], None if args.all else args.limit
     )
     chosen_ids = {c["case"]["id"] for c in chosen}
-    selected = [(r, c) for r, c in usable if r["case"]["id"] in chosen_ids]
+    contexts_by_id = {r["case"]["id"]: c for r, c in usable}
+    selected = [(r, contexts_by_id[r["case"]["id"]]) for r in chosen]
 
     samples = [
         SingleTurnSample(
@@ -226,7 +292,7 @@ def main() -> int:
     # extra concurrency buys nothing and only thrashes the context of an
     # 11GB model; a small pool keeps the event loop healthy and the
     # per-call timeout meaningful.
-    run_config = RunConfig(max_workers=4, timeout=600, max_retries=3)
+    run_config = RunConfig(max_workers=1, timeout=600, max_retries=2)
     result = evaluate(
         dataset=EvaluationDataset(samples=samples),
         metrics=metrics,

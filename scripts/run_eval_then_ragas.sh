@@ -1,40 +1,25 @@
 #!/usr/bin/env bash
-# Run the pipeline's own eval, then score the same answers with RAGAS.
-#
-# Chained because RAGAS reads a completed eval-*.json: it scores the exact
-# answers this project's own metrics scored, so the two sets of numbers
-# describe identical text rather than two separate generations.
-#
-# The eval skips its relevancy judge (one less call per case); RAGAS
-# measures response relevancy itself, so nothing is lost.
-set -u
+# Run the 50-question safety set and a separate 50-answer RAGAS benchmark.
+set -euo pipefail
+cd "$(dirname "$0")/.."
 
-cd "$(dirname "$0")/.." || exit 1
-ROOT=$(pwd)
-LOG_DIR=${1:-.}
+EVAL_DIR=data/processed/eval
 
-echo "=== [1/2] pipeline eval (50 cases) ==="
-date +"start %H:%M:%S"
-python -u -m gaia_rag.eval.run_eval --no-relevancy > "$LOG_DIR/eval50.log" 2>&1
-EVAL_RC=$?
-tail -32 "$LOG_DIR/eval50.log"
-date +"end   %H:%M:%S"
+echo "[1/5] Safety evaluation (50 questions)"
+python -m gaia_rag.eval.run_eval
+SAFETY_RUN=$(ls -t "$EVAL_DIR"/eval-*.json | head -n 1)
 
-# A non-zero exit means some cases failed, which is a result, not a
-# breakage: RAGAS should still score whatever was produced. Only a
-# missing output file is fatal.
-if ! ls data/processed/eval/eval-*.json >/dev/null 2>&1; then
-  echo "FATAL: eval produced no output; not running RAGAS"
-  exit 1
-fi
-echo "(eval exit code $EVAL_RC)"
+echo "[2/5] Answerable supplement (8 questions)"
+python -m gaia_rag.eval.run_eval --goldset gaia_rag/eval/goldset/ragas_extra.jsonl
+EXTRA_RUN=$(ls -t "$EVAL_DIR"/eval-*.json | head -n 1)
 
-echo
-echo "=== [2/2] RAGAS on the same answers ==="
-date +"start %H:%M:%S"
-.venv-ragas/Scripts/python.exe -u -m gaia_rag.eval.ragas_eval --all \
-  > "$LOG_DIR/ragas50.log" 2>&1
-RAGAS_RC=$?
-tail -40 "$LOG_DIR/ragas50.log"
-date +"end   %H:%M:%S"
-echo "(ragas exit code $RAGAS_RC)"
+echo "[3/5] Build the 50-answer RAGAS benchmark"
+python -m gaia_rag.eval.build_ragas_benchmark --safety-run "$SAFETY_RUN" --extra-run "$EXTRA_RUN"
+BENCHMARK=$(ls -t "$EVAL_DIR"/benchmark-50-*.json | head -n 1)
+
+echo "[4/5] RAGAS: four metrics on 50 answers"
+.venv-ragas/Scripts/python.exe -m gaia_rag.eval.ragas_eval --run "$BENCHMARK" --all --context-precision --judge qwen3:8b
+RAGAS_RUN="$EVAL_DIR/ragas-$(basename "$BENCHMARK")"
+
+echo "[5/5] Verify all four metric averages exceed 0.7"
+python -m gaia_rag.eval.verify_ragas --run "$RAGAS_RUN"
